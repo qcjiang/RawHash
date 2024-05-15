@@ -40,6 +40,9 @@ void ri_mapopt_init(ri_mapopt_t *opt)
 	opt->chunk_size = 4000; //--chunk-size
 	opt->sample_per_base = (float)opt->sample_rate / opt->bp_per_sec;
 
+	opt->vote_length = 256;
+	opt->vote_threshold = 10;
+
 	//seeding
 	// opt->mid_occ_frac = 75e-4f; //--mid-occ-frac
 	opt->mid_occ_frac = 1e-2f; //--mid-occ-frac

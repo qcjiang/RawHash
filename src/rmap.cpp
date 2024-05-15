@@ -188,6 +188,97 @@ void align_chain(mm_reg1_t *chain, mm128_t* anchors, const ri_idx_t *ri, const f
 	}
 }
 
+/**
+ *	Determines best mapping regions according to voting algorithm
+ *
+ *	
+ *
+ *	@return index	returns array with best positions in reference genome
+ */
+mm128_t* vote(void *km, const ri_idx_t *ri, mm128_t* seed_hits, int64_t &seeds_num, uint32_t vote_threshold, uint32_t vote_length)
+{
+    uint32_t n_seq = ri->n_seq;
+	uint32_t l = vote_length;  
+    int32_t threshold = vote_threshold;
+    uint32_t location, position;
+    uint32_t ref_id;
+    int64_t filtered_seeds_num = 0;
+
+    std::vector<mm128_t> filtered_seeds(n_seq);
+    std::vector<uint32_t> ref_len(n_seq);
+    std::vector<std::vector<uint32_t> > regions(n_seq);
+    std::vector<mm128_t> filtered_anchors;
+
+    for (int i = 0; i < n_seq; i++) {
+        uint32_t amount_regions;
+        ref_len[i] = ri->seq[i].len;
+
+        if ((ref_len[i] % (l/2)) == 0)
+            amount_regions = ref_len[i] / (l / 2);
+        else
+            amount_regions = (ref_len[i] / (l / 2)) + 1;
+
+        regions[i] = std::vector<uint32_t>(amount_regions, 0);
+    }
+
+    for (int i = 0; i < seeds_num; i++) { // iterate the anchors to determine the regions
+        position = seed_hits[i].x & ((1ULL << 32) - 1);
+        if (position % l == 0 || position < l) 
+            location = position / l;
+        else 
+            location = position / l + 1;
+
+        if(location > 1) 
+            location += location - 2;        
+        ref_id = (seed_hits[i].x >> 32) & 0x7FFFFFFF; // extract the ref_id, which is 1-32 bits of seed_hits[i].x
+
+        ++regions[ref_id][location];
+
+        if(position <= l/2 || (ref_len[ref_id] % l == 0 && ref_len[ref_id] - position < l/2 && position % l > l/2) || (ref_len[ref_id] % l > l/2 && ref_len[ref_id] - position < l/2 && position % l > l/2)) // 
+            continue;
+        else if (position % l == 0 || position % l > l / 2)
+            ++regions[ref_id][location + 1];
+        else
+            ++regions[ref_id][location - 1];
+    }
+
+    for (int i = 0; i < seeds_num; i++) { // iterate the anchors to filter some anchors according to their positions
+        position = seed_hits[i].x & ((1ULL << 32) - 1);
+        bool add_anchor = false;
+        // Determine matching region 
+        if (position % l == 0 || position < l) 
+            location = position / l;
+        else 
+            location = position / l + 1;
+
+        if(location > 1) 
+            location += location - 2;
+
+        ref_id = (seed_hits[i].x >> 32) & 0x7FFFFFFF; // extract the ref_id, which is 1-32 bits of seed_hits[i].x
+
+        if(regions[ref_id][location] >= threshold) add_anchor = true; //actual region
+
+        if(position <= l/2 || (ref_len[ref_id] %l == 0 && ref_len[ref_id] - position < l/2 && position % l > l/2) || (ref_len[ref_id] % l > l/2 && ref_len[ref_id] - position < l/2 && position % l > l/2)) // no overlapping region for first or last region!	
+            continue;
+        else if (position % l == 0 || position % l > l / 2) {
+            if ((location < (ref_len[ref_id]-1)) && regions[ref_id][location+1] >= threshold)
+                add_anchor = true;
+        }
+        else if ((location > 0) && (regions[ref_id][location-1] >= threshold))
+            add_anchor = true;
+
+        if(add_anchor) {
+            filtered_anchors.emplace_back(seed_hits[i]);
+            filtered_seeds_num++;
+            // fprintf(stderr, "[M::%s] anchor_n: %ld, target position: %d \n",  __func__, anchor_n, anchors[chromo][anchor_n].target_position);
+        }
+    }
+    seeds_num = filtered_seeds_num;
+    seed_hits = (mm128_t*)ri_krealloc(km, seed_hits, filtered_seeds_num * sizeof(mm128_t));
+    memcpy(seed_hits, filtered_anchors.data(), filtered_seeds_num * sizeof(mm128_t));
+    return seed_hits;
+}
+
 void ri_map_frag(const ri_idx_t *ri,
 				const uint32_t s_len,
 				const float *sig,
@@ -201,6 +292,9 @@ void ri_map_frag(const ri_idx_t *ri,
 				const uint32_t c_count = 0)
 {	
 	uint32_t n_events = 0;
+
+	int vote_threshold = opt->vote_threshold;
+	int vote_length = opt->vote_length;
 
 	#ifdef PROFILERH
 	double signal_t = ri_realtime();
@@ -253,6 +347,22 @@ void ri_map_frag(const ri_idx_t *ri,
 	seed_hits = collect_seed_hits(b->km, opt->mid_occ, opt->max_max_occ, opt->occ_dist, ri, qname, reg, &riv, n_events, &n_seed_pos, &rep_len);
 	if(riv.a){ri_kfree(b->km, riv.a); riv.a = NULL; riv.n = riv.m = 0;}
 	// ri_kfree(b->km, seed_mini);
+
+    // fprintf(stderr, "xxxxxxxxxxxxxxxxxxxxxx before voting xxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
+    // fprintf(stderr, "n_seed_pos = %lu\n", n_seed_pos);
+    // for (size_t i = 0; i < n_seed_pos; ++i) {
+    //     mm128_t element = seed_hits[i];
+    //     fprintf(stderr, "Element %lu: x = %lu, y = %lu\n", i, element.x, element.y);
+    // }
+
+	seed_hits = vote(b->km, ri, seed_hits, n_seed_pos, vote_threshold, vote_length);
+
+    // fprintf(stderr, "xxxxxxxxxxxxxxxxxxxxxx after voting xxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
+    // fprintf(stderr, "n_seed_pos = %lu\n", n_seed_pos);
+    // for (size_t i = 0; i < n_seed_pos; ++i) {
+    //     mm128_t element = seed_hits[i];
+    //     fprintf(stderr, "Element %lu: x = %lu, y = %lu\n", i, element.x, element.y);
+    // }
 
 	#ifdef PROFILERH
 	ri_seedtime += ri_realtime() - seed_t;
@@ -315,6 +425,36 @@ void ri_map_frag(const ri_idx_t *ri,
 
 	//Set MAPQ TODO: integrate alignment score within mapq
 	mm_set_mapq(b->km, reg->n_cregs, reg->creg, opt->min_chaining_score, rep_len, (opt->flag&RI_M_DTW_EVALUATE_CHAINS)?1:0);
+
+    // for(int ic = 0; ic < reg->n_cregs; ++ic){
+    //     int rid = reg->creg[ic].rid;
+    //     int rs = reg->creg[ic].rev?(uint32_t)(ri->seq[rid].len+1-reg->creg[ic].re):reg->creg[ic].rs;
+        // char* rname = (ri->flag&RI_I_SIG_TARGET)?ri->sig[rid].name:ri->seq[rid].name;
+
+        // float* ref = (reg->creg[ic].rev)?ri->R[rid]:ri->F[rid];
+        // uint32_t r_len = (reg->creg[ic].rev)?ri->r_l_sig[rid]:ri->f_l_sig[rid];
+
+        // if(reg->creg[ic].rev)
+        //     fprintf(stderr, "Chain: %d\trid: %d\tmapq: %d\tscore: %d\tcnt: %d\ts: %c\trs: %d\tql: %d\tp?: %c\n", ic, rid, reg->creg[ic].mapq, reg->creg[ic].score, reg->creg[ic].cnt, "+-"[reg->creg[ic].rev], rs, reg->creg[ic].qs, reg->creg[ic].qe, "01"[reg->creg[ic].parent == ic]);
+
+        //     fprintf(stderr, "Chain: %d rid: %d mapq: %d score: %d align: %f cnt: %d s: %c rs: %d qs: %d qe: %d p?: %c\n", ic, rid, reg->creg[ic].mapq, reg->creg[ic].score, reg->creg[ic].alignment_score, reg->creg[ic].cnt, "+-"[reg->creg[ic].rev], rs, reg->creg[ic].qs, reg->creg[ic].qe, "01"[reg->creg[ic].parent == ic]);
+
+        //     // float* revents = ref + reg->creg[ic].rs;
+        //     // uint32_t rlen = reg->creg[ic].re - reg->creg[ic].rs + 1;
+
+        //     //print ref starting from rs until re - rs + 1
+        //     // for(int j = 0; j < rlen; ++j){
+        //     //     fprintf(stderr, "%f ", revents[j]);
+        //     // } fprintf(stderr, " 1\n");
+
+        //     // float* qevents = reg->events + reg->creg[ic].qs;
+        //     // uint32_t qlen = reg->creg[ic].qe - reg->creg[ic].qs + 1;
+
+        //     //print reg->Events from qs until qe - qs + 1
+        //     // for(int j = 0; j < qlen; ++j){
+        //     //     fprintf(stderr, "%f ", qevents[j]);
+        //     // } fprintf(stderr, " 2\n");
+    // }
 
 	if(seed_hits){ri_kfree(b->km, seed_hits); seed_hits = NULL;}
 	if(u){ri_kfree(b->km, u); u = NULL;}

@@ -71,6 +71,10 @@ typedef struct ri_mapopt_s{
 	uint32_t sample_rate;
 	uint32_t chunk_size;
 	float sample_per_base;
+    
+	//Voting parameters
+	uint32_t vote_threshold;
+	uint32_t vote_length;
 
 	//Seeding parameters
 	float mid_occ_frac;

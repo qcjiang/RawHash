@@ -110,7 +110,7 @@ mm_reg1_t *mm_gen_regs(void *km,
 	mm128_t *z, tmp;
 	mm_reg1_t *r;
 	int i, k;
-
+	// fprintf(stderr, "n_u = %d\n", n_u);
 	if (n_u == 0) return 0;
 
 	// sort by score

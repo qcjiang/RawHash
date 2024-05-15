@@ -345,7 +345,9 @@ int main(int argc, char *argv[])
 		else if (c == 364) {ipt.fine_min = atof(o.arg);}// --fine-min
 		else if (c == 365) {ipt.fine_max = atof(o.arg);}// --fine-max
 		else if (c == 366) {ipt.fine_range = atof(o.arg);}// --fine-range
-		else if (c == 367) {puts(RH_VERSION); return 0;}// --version
+		else if (c == 367) {opt.vote_threshold = atoi(o.arg);}// --vote-threshold
+		else if (c == 368) {opt.vote_length = atoi(o.arg);}// --vote-length
+		else if (c == 369) {puts(RH_VERSION); return 0;}// --version
 		else if (c == 'V') {puts(RH_VERSION); return 0;}
 	}
 
@@ -372,7 +374,9 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "\n  Seeding:\n");
 		fprintf(fp_help, "    --q-mid-occ INT1[,INT2]     Lower and upper bounds of k-mer occurrences [%d, %d]. The final k-mer occurrence threshold is max{INT1, min{INT2, --occ-frac}}. This option prevents excessively small or large -f estimated from the input reference.\n", opt.min_mid_occ, opt.max_mid_occ);
 		fprintf(fp_help, "    --occ-frac FLOAT     Discard a query seed if its occurrence is higher than FLOAT fraction of all query seeds [%g]. Set 0 to disable. [Note: Both --q-mid-occ and --occ-frac should be met for a seed to be discarded].\n", opt.q_occ_frac);
-		
+		fprintf(fp_help, "\n  Voting:\n");
+		fprintf(fp_help, "    --vote-threshold INT     voting threshold to keep anchors [%d]\n", opt.vote_threshold);
+		fprintf(fp_help, "    --vote-length INT     length of a voting bucket [%d]\n", opt.vote_length);
 		fprintf(fp_help, "\n  Chaining Parameters:\n");
 		fprintf(fp_help, "    --min-events INT     minimum number of INT events in a chunk to start chain elongation [%u].\n", opt.min_events);
 		fprintf(fp_help, "    --bw INT     maximum INT gap length in a chain [%d].\n", opt.bw);
@@ -499,6 +503,8 @@ int main(int argc, char *argv[])
 		// }
 		// }
 		// else { //TODO: enable frag mode directly from options
+        fprintf(stderr, "opt->vote_length: %d\n", opt.vote_length);
+		fprintf(stderr, "opt->vote_threshold: %d\n", opt.vote_threshold);
 			ret = ri_map_file_frag(ri, argc - (o.ind + 1), (const char**)&argv[o.ind + 1], &opt, n_threads);
 		// }
 		ri_idx_destroy(ri);
