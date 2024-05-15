@@ -7,12 +7,12 @@ import fileinput
 from statistics import median
 from statistics import mean
 
-if (len(sys.argv) < 5):
-  print("usage: compare_pafs.py uncalled_ann.paf sigmap_ann.paf rawhash_ann.paf rawhash2_ann.paf")
+if (len(sys.argv) < 6):
+  print("usage: compare_pafs.py uncalled_ann.paf sigmap_ann.paf rawhash_ann.paf rawhash2_ann.paf rawhash2_vote_ann.paf")
   sys.exit(1)
 
 fps = []
-for tool in [1, 2, 3, 4]:
+for tool in [1, 2, 3, 4, 5]:
   fps.append(open(sys.argv[tool]))
 
 uncalled_tp = 0
@@ -333,3 +333,97 @@ print("RawHash2 Mean (only unmapped) # of sequenced chunks per read : " + str(me
 print("#Done with RawHash2\n")
 
 fps[3].close()
+
+rawhash2_vote_tp = 0
+rawhash2_vote_fp = 0
+rawhash2_vote_fn = 0
+rawhash2_vote_tn = 0
+
+rawhash2_vote_time_per_chunk = []
+rawhash2_vote_time_per_read = []
+rawhash2_vote_maplast_pos = []
+rawhash2_vote_maplast_chunk = []
+rawhash2_vote_umaplast_pos = []
+rawhash2_vote_umaplast_chunk = []
+rawhash2_vote_refgap = []
+rawhash2_vote_readgap = []
+for line in fps[4]:
+  cols = line.rstrip().split()
+  if (len(cols) == 20):
+    mt = float(cols[12].split(":")[2])
+    lastpos = int(cols[1])
+    if (cols[19].split(":")[2] != 'na'):
+      rawhash2_vote_time_per_read.append(mt)
+      if(cols[2] != '*'):
+        if(int(cols[2]) > 0):
+          rawhash2_vote_maplast_pos.append(lastpos)
+      else:
+        rawhash2_vote_umaplast_pos.append(lastpos)
+    chunk = int(cols[13].split(":")[2])
+    if(cols[2] != '*'):
+      if(int(cols[2]) > 0):
+        rawhash2_vote_maplast_chunk.append(chunk)
+    else:
+      rawhash2_vote_umaplast_chunk.append(chunk)
+    cm = int(cols[15].split(":")[2])
+    nc = int(cols[16].split(":")[2])
+    s1 = float(cols[17].split(":")[2])
+    # s2 = float(cols[18].split(":")[2])
+    sm = float(cols[18].split(":")[2])
+    if (cols[19].split(":")[2] == 'tp'):
+      rawhash2_vote_tp += 1
+      rawhash2_vote_time_per_chunk.append(mt / chunk)
+    if (cols[19].split(":")[2] == 'fp' or cols[19].split(":")[2] == 'na'):
+      rawhash2_vote_fp += 1
+      rawhash2_vote_time_per_chunk.append(mt / chunk)
+    if (cols[19].split(":")[2] == 'fn'):
+      rawhash2_vote_fn += 1
+      rawhash2_vote_time_per_chunk.append(mt / chunk)
+    if (cols[19].split(":")[2] == 'tn'):
+      rawhash2_vote_tn += 1
+      rawhash2_vote_time_per_chunk.append(mt / chunk)
+  if (len(cols) == 15):
+    mt = float(cols[12].split(":")[2])
+    if (cols[14].split(":")[2] != 'na'):
+      rawhash2_vote_time_per_read.append(mt)
+    if (cols[14].split(":")[2] == 'fn'):
+      rawhash2_vote_fn += 1
+    if (cols[14].split(":")[2] == 'tn'):
+      rawhash2_vote_tn += 1
+print("RawHash2_vote TP: " + str(rawhash2_vote_tp))
+print("RawHash2_vote FP: " + str(rawhash2_vote_fp))
+print("RawHash2_vote FN: " + str(rawhash2_vote_fn))
+print("RawHash2_vote TN: " + str(rawhash2_vote_tn))
+if (rawhash2_vote_tp + rawhash2_vote_fp == 0):
+    rawhash2_vote_precision = 0
+else:
+  rawhash2_vote_precision = rawhash2_vote_tp / (rawhash2_vote_tp + rawhash2_vote_fp)
+print("RawHash2_vote precision: " + str(rawhash2_vote_precision))
+if (rawhash2_vote_tp + rawhash2_vote_fn == 0):
+  rawhash2_vote_recall = 0
+else:
+  rawhash2_vote_recall = rawhash2_vote_tp / (rawhash2_vote_tp + rawhash2_vote_fn)
+print("RawHash2_vote recall: " + str(rawhash2_vote_recall))
+if (rawhash2_vote_precision + rawhash2_vote_recall == 0):
+  print("RawHash2_vote F-1 score: 0")
+else:
+  print("RawHash2_vote F-1 score: " + str(2 * rawhash2_vote_precision * rawhash2_vote_recall / (rawhash2_vote_precision + rawhash2_vote_recall)))
+print("RawHash2_vote Mean time per mapped read : " + str(mean(rawhash2_vote_time_per_chunk)))
+print("RawHash2_vote Median time per mapped read : " + str(median(rawhash2_vote_time_per_chunk)))
+print("RawHash2_vote Mean time per unmapped read : " + str(mean(rawhash2_vote_time_per_read)))
+print("RawHash2_vote Median time per unmapped read : " + str(median(rawhash2_vote_time_per_read)))
+print("RawHash2_vote Mean time per read : " + str(mean(rawhash2_vote_time_per_read + rawhash2_vote_time_per_chunk)))
+print("RawHash2_vote Median time per read : " + str(median(rawhash2_vote_time_per_read + rawhash2_vote_time_per_chunk)))
+print("RawHash2_vote Mean # of sequenced bases per read : " + str(mean(rawhash2_vote_maplast_pos + rawhash2_vote_umaplast_pos)))
+print("RawHash2_vote Mean # of sequenced chunks per read : " + str(mean(rawhash2_vote_maplast_chunk + rawhash2_vote_umaplast_chunk)))
+
+print("RawHash2_vote Mean (only mapped) # of sequenced bases per read : " + str(mean(rawhash2_vote_maplast_pos)))
+print("RawHash2_vote Mean (only mapped) # of sequenced chunks per read : " + str(mean(rawhash2_vote_maplast_chunk)))
+
+print("RawHash2_vote Mean (only unmapped) # of sequenced bases per read : " + str(mean(rawhash2_vote_umaplast_pos)))
+print("RawHash2_vote Mean (only unmapped) # of sequenced chunks per read : " + str(mean(rawhash2_vote_umaplast_chunk)))
+
+print("#Done with RawHash2_vote\n")
+
+fps[4].close()
+
