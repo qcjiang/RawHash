@@ -89,7 +89,9 @@ static ko_longopt_t long_options[] = {
 	{ (char*)"fine-min",			ko_required_argument, 	364 },
 	{ (char*)"fine-max",			ko_required_argument, 	365 },
 	{ (char*)"fine-range",			ko_required_argument, 	366 },
-	{ (char*)"version",				ko_no_argument, 	  	367 },
+    { (char*)"vote-threshold",		ko_required_argument, 	367 },
+    { (char*)"vote-length",			ko_required_argument, 	368 },
+	{ (char*)"version",				ko_no_argument, 	  	369 },
 	{ 0, 0, 0 }
 };
 
