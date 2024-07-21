@@ -130,4 +130,8 @@ void ri_mapopt_init(ri_mapopt_t *opt)
 	opt->tn_samples = 5; //--n-samples
 	opt->ttest_freq = 500; //--test-frequency
 	opt->tmin_reads = 500; //--min-reads
+
+	//Bit flip parameters
+	opt->key_flip_rate = 0.005;
+	opt->value_flip_rate = 0.002;
 }

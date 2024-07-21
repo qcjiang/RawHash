@@ -79,11 +79,66 @@ void ri_idx_destroy(ri_idx_t *ri){
 	free(ri->B); free(ri);
 }
 
-void ri_idx_add(ri_idx_t *ri, int n, const mm128_t *a){
+// void ri_idx_add(ri_idx_t *ri, int n, const mm128_t *a){
+// 	int i, mask = (1<<ri->b) - 1;
+// 	mm128_t *modified_a = (mm128_t *)malloc(n * sizeof(mm128_t));
+// 	for (i = 0; i < n; ++i) {
+// 		// fprintf(stderr, "a[i].x = %lx\n", a[i].x>>RI_HASH_SHIFT);
+// 		uint64_t key = flip_bits(a[i].x>>RI_HASH_SHIFT, true, 0.1);
+// 		// fprintf(stderr, "key = %lx\n", key);
+// 		uint64_t val = flip_bits(a[i].y, false, 0.001);
+// 		//modify first 32 bits of key with bit flips
+// 		//bitflip val
+// 		modified_a[i].x = key << RI_HASH_SHIFT | (a[i].x & ((1U << RI_HASH_SHIFT) - 1));
+// 		modified_a[i].y = val;
+// 		mm128_v *p = &ri->B[modified_a[i].x>>RI_HASH_SHIFT&mask].a;
+// 		rh_kv_push(mm128_t, 0, *p, modified_a[i]);
+// 	}
+// }
+uint64_t key_num = 0;
+uint64_t value_num = 0;
+uint64_t key_changed = 0;
+uint64_t value_changed = 0;
+std::vector<uint64_t> key_before_changed;
+std::vector<uint64_t> key_after_changed;
+std::vector<uint64_t> value_before_changed;
+std::vector<uint64_t> value_after_changed;
+
+void ri_idx_add(ri_idx_t *ri, int n, mm128_t *a){
 	int i, mask = (1<<ri->b) - 1;
 	for (i = 0; i < n; ++i) {
+		uint64_t key = flip_bits(a[i].x>>RI_HASH_SHIFT, true, 0.01);
+		uint64_t val = flip_bits(a[i].y, false, 0.01);
+		key_num++;
+		value_num++;
+		if (key != a[i].x>>RI_HASH_SHIFT) {
+			key_changed++;
+			key_before_changed.push_back(a[i].x>>RI_HASH_SHIFT);
+			key_after_changed.push_back(key);
+		}
+		if(val != a[i].y) {
+			value_changed++;
+			value_before_changed.push_back(a[i].y);
+			value_after_changed.push_back(val);
+		}
+		//modify first 32 bits of key with bit flips
+		//bitflip val
+		a[i].x = key << RI_HASH_SHIFT | (a[i].x & ((1U << RI_HASH_SHIFT) - 1));
+        a[i].y = val;
 		mm128_v *p = &ri->B[a[i].x>>RI_HASH_SHIFT&mask].a;
 		rh_kv_push(mm128_t, 0, *p, a[i]);
+	}
+	fprintf(stderr, "key_num = %ld\n", key_num);
+	fprintf(stderr, "key_changed = %ld\n", key_changed);
+	fprintf(stderr, "value_num = %ld\n", value_num);
+	fprintf(stderr, "value_changed = %ld\n", value_changed);
+	fprintf(stderr, "*******************changed key************************\n");
+	for (int i = 0; i < key_changed; i++) {
+		fprintf(stderr, "key_before_changed = %lx, key_after_changed = %lx\n", key_before_changed[i], key_after_changed[i]);
+	}
+	fprintf(stderr, "*******************changed value************************\n");
+	for (int i = 0; i < value_changed; i++) {
+		fprintf(stderr, "value_before_changed = %lx, value_after_changed = %lx\n", value_before_changed[i], value_after_changed[i]);
 	}
 }
 
@@ -744,4 +799,18 @@ void ri_mapopt_update(ri_mapopt_t *opt, const ri_idx_t *ri)
 				opt->mid_occ_frac, opt->q_occ_frac, opt->mid_occ, opt->min_mid_occ, opt->max_mid_occ);
 	}
 	if (opt->bw_long < opt->bw) opt->bw_long = opt->bw;
+}
+
+uint64_t flip_bits(const uint64_t input, const bool if_flip_least_32_bits, const float flip_rate) {
+    static std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr))); 
+    std::bernoulli_distribution dist(flip_rate);
+
+    uint64_t result = input;
+    int num_bits = if_flip_least_32_bits ? 32 : 12;
+    for (int i = 0; i < num_bits; ++i) {
+        if (dist(rng)) { 
+            result ^= (1ULL << i);
+        }
+    }
+    return result;
 }

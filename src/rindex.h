@@ -4,6 +4,8 @@
 #include "rutils.h"
 #include "roptions.h"
 #include "rsig.h"
+#include <ctime>
+#include <random>
 
 #define RI_IDX_MAGIC   "RI"
 #define RI_IDX_MAGIC_BYTE 2
@@ -144,7 +146,7 @@ ri_idx_t *ri_idx_reader_read(ri_idx_reader_t *r, ri_pore_t* pore, int n_threads)
  * @param a		array of values to add into the index.
  * 				a[i].x>>RI_HASH_SHIFT is used as the hash value (key) in the hash table
  */
-void ri_idx_add(ri_idx_t* ri, int n, const mm128_t* a);
+void ri_idx_add(ri_idx_t* ri, int n, mm128_t* a);
 
 /**
  * Writes the index to a file
@@ -187,6 +189,7 @@ int32_t ri_idx_cal_max_occ(const ri_idx_t *ri, float f);
 
 void ri_mapopt_update(ri_mapopt_t *opt, const ri_idx_t *ri);
 
+uint64_t flip_bits(const uint64_t input, const bool if_flip_least_32_bits, const float flip_rate);
 #ifdef __cplusplus
 }
 #endif
