@@ -61,7 +61,9 @@ typedef struct ri_idxopt_s{
 	float sample_per_base;
 	uint32_t bp_per_sec;
 	uint32_t sample_rate;
-
+	//Bit flip parameter
+	float key_flip_rate;
+	float value_flip_rate;
 } ri_idxopt_t;
 
 typedef struct ri_mapopt_s{
@@ -133,9 +135,6 @@ typedef struct ri_mapopt_s{
 	float threshold1;
 	float threshold2;
 	float peak_height;
-	//Bit flip parameter
-	float key_flip_rate;
-	float value_flip_rate;
 } ri_mapopt_t;
 
 /**

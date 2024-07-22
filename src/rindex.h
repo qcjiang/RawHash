@@ -58,6 +58,8 @@ typedef struct ri_idx_s{
 	float **R; //reverse
 	uint32_t *r_l_sig; //length of the signals (reverse)
 
+	float key_flip_rate;
+	float value_flip_rate;
 } ri_idx_t;
 
 // index reader
@@ -125,7 +127,7 @@ int64_t ri_idx_is_idx(const char* fn);
  * 
  * @return		rindex (index)
  */
-ri_idx_t* ri_idx_init(float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, int flag);
+ri_idx_t* ri_idx_init(float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, int flag, float key_flip_rate, float value_flip_rate);
 
 /**
  * Reads or constructs the index from file. If the file is not index, it should be a file containing sequences to generate the index for.
@@ -189,7 +191,9 @@ int32_t ri_idx_cal_max_occ(const ri_idx_t *ri, float f);
 
 void ri_mapopt_update(ri_mapopt_t *opt, const ri_idx_t *ri);
 
-uint64_t flip_bits(const uint64_t input, const bool if_flip_least_32_bits, const float flip_rate);
+uint64_t flip_bits_32(const uint64_t input, const float flip_rate);
+
+uint64_t flip_bits_from_most_significant_one(const uint64_t input, const float flip_rate);
 #ifdef __cplusplus
 }
 #endif

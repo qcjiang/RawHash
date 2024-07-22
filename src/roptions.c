@@ -29,6 +29,9 @@ void ri_idxopt_init(ri_idxopt_t *opt)
 	opt->bp_per_sec = 450; //--bp-per-sec
 	opt->sample_rate = 4000; //--sample-rate
 	opt->sample_per_base = (float)opt->sample_rate / opt->bp_per_sec;
+	//Bit flip parameters
+	opt->key_flip_rate = 0.005;
+	opt->value_flip_rate = 0.002;
 }
 
 void ri_mapopt_init(ri_mapopt_t *opt)
@@ -131,7 +134,5 @@ void ri_mapopt_init(ri_mapopt_t *opt)
 	opt->ttest_freq = 500; //--test-frequency
 	opt->tmin_reads = 500; //--min-reads
 
-	//Bit flip parameters
-	opt->key_flip_rate = 0.005;
-	opt->value_flip_rate = 0.002;
+
 }

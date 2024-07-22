@@ -89,8 +89,8 @@ static ko_longopt_t long_options[] = {
 	{ (char*)"fine-min",			ko_required_argument, 	364 },
 	{ (char*)"fine-max",			ko_required_argument, 	365 },
 	{ (char*)"fine-range",			ko_required_argument, 	366 },
-	{ (char*)"key-flip-rate",       ko_no_argument,         367 },
-	{ (char*)"value-flip-rate",     ko_no_argument,         368 },
+	{ (char*)"key-flip-rate",       ko_required_argument,   367 },
+	{ (char*)"value-flip-rate",     ko_required_argument,   368 },
 	{ (char*)"version",				ko_no_argument, 	  	369 },
 	{ 0, 0, 0 }
 };
@@ -347,7 +347,9 @@ int main(int argc, char *argv[])
 		else if (c == 364) {ipt.fine_min = atof(o.arg);}// --fine-min
 		else if (c == 365) {ipt.fine_max = atof(o.arg);}// --fine-max
 		else if (c == 366) {ipt.fine_range = atof(o.arg);}// --fine-range
-		else if (c == 367) {puts(RH_VERSION); return 0;}// --version
+		else if (c == 367) {ipt.key_flip_rate = atof(o.arg);}// --key-flip-rate
+		else if (c == 368) {ipt.value_flip_rate = atof(o.arg);}// --value-flip-rate
+		else if (c == 369) {puts(RH_VERSION); return 0;}// --version
 		else if (c == 'V') {puts(RH_VERSION); return 0;}
 	}
 
@@ -429,8 +431,8 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    -t INT      number of threads [%d]\n", n_threads);
 		fprintf(fp_help, "    -K NUM      minibatch size for mapping [500M]. Increasing this value may increase thread utilization. If there are many larger FAST5 files, it is recommended to keep this value between 500M - 5G to use less memory while utilizing threads nicely.\n");
 //		fprintf(fp_help, "    -v INT     verbose level [%d]\n", ri_verbose);
-		fprintf(fp_help, "    --key-flip-rate FLOAT     bits flip rate for the key [%g]\n", opt.key_flip_rate);
-		fprintf(fp_help, "    --value-flip-rate FLOAT     bits flip rate for the value [%g]\n", opt.value_flip_rate);
+		fprintf(fp_help, "    --key-flip-rate FLOAT     bits flip rate for the key [%f]\n", ipt.key_flip_rate);
+		fprintf(fp_help, "    --value-flip-rate FLOAT     bits flip rate for the value [%f]\n", ipt.value_flip_rate);
 		fprintf(fp_help, "    --version     show version number\n");
 		
 		fprintf(fp_help, "\n  Presets:\n");
@@ -503,8 +505,8 @@ int main(int argc, char *argv[])
 		// }
 		// }
 		// else { //TODO: enable frag mode directly from options
-			fprintf(stderr, "opt->key_flip_rate: %g\n", opt.key_flip_rate);
-			fprintf(stderr, "opt->value_flip_rate: %g\n", opt.value_flip_rate);
+			fprintf(stderr, "ipt->key_flip_rate: %g\n", ipt.key_flip_rate);
+			fprintf(stderr, "ipt->value_flip_rate: %g\n", ipt.value_flip_rate);
 			ret = ri_map_file_frag(ri, argc - (o.ind + 1), (const char**)&argv[o.ind + 1], &opt, n_threads);
 		// }
 		ri_idx_destroy(ri);

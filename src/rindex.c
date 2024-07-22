@@ -50,13 +50,15 @@ void ri_idx_stat(const ri_idx_t *ri)
 	fprintf(stderr, "[M::%s] pore kmer size: %d; concatanated events: %d; quantization bits: %d; w: %d; n: %d; #seq: %d\n", __func__, ri->k, ri->e, ri->q, ri->w, ri->n, ri->n_seq);
 }
 
-ri_idx_t* ri_idx_init(float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, int flag){
+ri_idx_t* ri_idx_init(float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, int flag, float key_flip_rate, float value_flip_rate){
 	ri_idx_t* ri;
 	ri = (ri_idx_t*)calloc(1, sizeof(ri_idx_t));
   	ri->b = b, ri->w = w; ri->e = e; ri->n = n; ri->q = q; ri->k = k, ri->flag = flag;
 	ri->diff = diff;
 	ri->fine_min = fine_min, ri->fine_max = fine_max, ri->fine_range = fine_range;
 	ri->seq = NULL; ri->sig = NULL; ri->F = NULL; ri->R = NULL; ri->f_l_sig = NULL; ri->r_l_sig = NULL; ri->pore = NULL; ri->h = NULL;
+	ri-> key_flip_rate = key_flip_rate;
+	ri-> value_flip_rate = value_flip_rate;
   	ri->B = (ri_idx_bucket_t*)calloc(1<<ri->b, sizeof(ri_idx_bucket_t));
   	ri->km = ri_km_init();
 
@@ -79,67 +81,53 @@ void ri_idx_destroy(ri_idx_t *ri){
 	free(ri->B); free(ri);
 }
 
-// void ri_idx_add(ri_idx_t *ri, int n, const mm128_t *a){
-// 	int i, mask = (1<<ri->b) - 1;
-// 	mm128_t *modified_a = (mm128_t *)malloc(n * sizeof(mm128_t));
-// 	for (i = 0; i < n; ++i) {
-// 		// fprintf(stderr, "a[i].x = %lx\n", a[i].x>>RI_HASH_SHIFT);
-// 		uint64_t key = flip_bits(a[i].x>>RI_HASH_SHIFT, true, 0.1);
-// 		// fprintf(stderr, "key = %lx\n", key);
-// 		uint64_t val = flip_bits(a[i].y, false, 0.001);
-// 		//modify first 32 bits of key with bit flips
-// 		//bitflip val
-// 		modified_a[i].x = key << RI_HASH_SHIFT | (a[i].x & ((1U << RI_HASH_SHIFT) - 1));
-// 		modified_a[i].y = val;
-// 		mm128_v *p = &ri->B[modified_a[i].x>>RI_HASH_SHIFT&mask].a;
-// 		rh_kv_push(mm128_t, 0, *p, modified_a[i]);
-// 	}
-// }
-uint64_t key_num = 0;
-uint64_t value_num = 0;
-uint64_t key_changed = 0;
-uint64_t value_changed = 0;
-std::vector<uint64_t> key_before_changed;
-std::vector<uint64_t> key_after_changed;
-std::vector<uint64_t> value_before_changed;
-std::vector<uint64_t> value_after_changed;
+// uint64_t key_num = 0;
+// uint64_t value_num = 0;
+// uint64_t key_changed = 0;
+// uint64_t value_changed = 0;
+// std::vector<uint64_t> key_before_changed;
+// std::vector<uint64_t> key_after_changed;
+// std::vector<uint64_t> value_before_changed;
+// std::vector<uint64_t> value_after_changed;
 
 void ri_idx_add(ri_idx_t *ri, int n, mm128_t *a){
 	int i, mask = (1<<ri->b) - 1;
 	for (i = 0; i < n; ++i) {
-		uint64_t key = flip_bits(a[i].x>>RI_HASH_SHIFT, true, 0.01);
-		uint64_t val = flip_bits(a[i].y, false, 0.01);
-		key_num++;
-		value_num++;
-		if (key != a[i].x>>RI_HASH_SHIFT) {
-			key_changed++;
-			key_before_changed.push_back(a[i].x>>RI_HASH_SHIFT);
-			key_after_changed.push_back(key);
-		}
-		if(val != a[i].y) {
-			value_changed++;
-			value_before_changed.push_back(a[i].y);
-			value_after_changed.push_back(val);
-		}
+		uint64_t key = flip_bits_32(a[i].x>>RI_HASH_SHIFT, ri->key_flip_rate);
+		uint64_t val = flip_bits_from_most_significant_one(a[i].y, ri->value_flip_rate);
+		// key_num++;
+		// value_num++;
+		// if (key != a[i].x>>RI_HASH_SHIFT) {
+		// 	key_changed++;
+		// 	key_before_changed.push_back(a[i].x>>RI_HASH_SHIFT);
+		// 	key_after_changed.push_back(key);
+		// }
+		// if(val != a[i].y) {
+		// 	value_changed++;
+		// 	value_before_changed.push_back(a[i].y);
+		// 	value_after_changed.push_back(val);
+		// }
 		//modify first 32 bits of key with bit flips
 		//bitflip val
+		
 		a[i].x = key << RI_HASH_SHIFT | (a[i].x & ((1U << RI_HASH_SHIFT) - 1));
         a[i].y = val;
 		mm128_v *p = &ri->B[a[i].x>>RI_HASH_SHIFT&mask].a;
 		rh_kv_push(mm128_t, 0, *p, a[i]);
 	}
-	fprintf(stderr, "key_num = %ld\n", key_num);
-	fprintf(stderr, "key_changed = %ld\n", key_changed);
-	fprintf(stderr, "value_num = %ld\n", value_num);
-	fprintf(stderr, "value_changed = %ld\n", value_changed);
-	fprintf(stderr, "*******************changed key************************\n");
-	for (int i = 0; i < key_changed; i++) {
-		fprintf(stderr, "key_before_changed = %lx, key_after_changed = %lx\n", key_before_changed[i], key_after_changed[i]);
-	}
-	fprintf(stderr, "*******************changed value************************\n");
-	for (int i = 0; i < value_changed; i++) {
-		fprintf(stderr, "value_before_changed = %lx, value_after_changed = %lx\n", value_before_changed[i], value_after_changed[i]);
-	}
+	fprintf(stderr, "ri->key_flip_rate = %g\n", ri->key_flip_rate);
+	fprintf(stderr, "ri->value_flip_rate = %g\n", ri->value_flip_rate);
+	// fprintf(stderr, "key_changed = %ld, key changed rate = %f\n", key_changed, (float) key_changed / key_num);
+	// fprintf(stderr, "value_num = %ld\n", value_num);
+	// fprintf(stderr, "value_changed = %ld, value changed rate = %f\n", value_changed, (float) value_changed / value_num);
+	// fprintf(stderr, "*******************changed key************************\n");
+	// for (int i = 0; i < key_changed; i++) {
+	// 	fprintf(stderr, "key_before_changed = %lx, key_after_changed = %lx\n", key_before_changed[i], key_after_changed[i]);
+	// }
+	// fprintf(stderr, "*******************changed value************************\n");
+	// for (int i = 0; i < value_changed; i++) {
+	// 	fprintf(stderr, "value_before_changed = %lx, value_after_changed = %lx\n", value_before_changed[i], value_after_changed[i]);
+	// }
 }
 
 static void *worker_pipeline(void *shared, int step, void *in)
@@ -525,7 +513,7 @@ ri_idx_t* ri_idx_load(FILE* idx_file){
 	fread(&fine_max, sizeof(float), 1, idx_file);
 	fread(&fine_range, sizeof(float), 1, idx_file);
 
-	ri = ri_idx_init(diff, 14, pars[0], pars[1], pars[2], pars[3], pars[4], fine_min, fine_max, fine_range, pars[6]);
+	ri = ri_idx_init(diff, 14, pars[0], pars[1], pars[2], pars[3], pars[4], fine_min, fine_max, fine_range, pars[6], 0, 0);
 	ri->n_seq = pars[5];
 	if(ri->flag&RI_I_SIG_TARGET) ri->sig = (ri_sig_t*)ri_kcalloc(ri->km, ri->n_seq, sizeof(ri_sig_t));
 	else ri->seq = (ri_idx_seq_t*)ri_kcalloc(ri->km, ri->n_seq, sizeof(ri_idx_seq_t));
@@ -613,7 +601,7 @@ ri_idx_reader_t* ri_idx_reader_open(const char *fn, const ri_idxopt_t *ipt, cons
 {
 	int64_t is_idx;
 	ri_idx_reader_t *r;
-	is_idx = ri_idx_is_idx(fn);
+		is_idx = ri_idx_is_idx(fn);
 	if (is_idx < 0) return 0; // failed to open the index
 	r = (ri_idx_reader_t*)calloc(1, sizeof(ri_idx_reader_t));
 	r->is_idx = is_idx;
@@ -651,7 +639,7 @@ void ri_idx_reader_close(ri_idx_reader_t* r){
 	free(r);
 }
 
-ri_idx_t* ri_idx_gen(mm_bseq_file_t* fp, ri_pore_t* pore, float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, int flag, int mini_batch_size, int n_threads, uint64_t batch_size)
+ri_idx_t* ri_idx_gen(mm_bseq_file_t* fp, ri_pore_t* pore, float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, int flag, int mini_batch_size, int n_threads, uint64_t batch_size, float key_flip_rate, float value_flip_rate)
 {
 
 	if(flag&RI_I_SIG_TARGET) return 0;
@@ -662,7 +650,7 @@ ri_idx_t* ri_idx_gen(mm_bseq_file_t* fp, ri_pore_t* pore, float diff, int b, int
 	pl.mini_batch_size = (uint64_t)mini_batch_size < batch_size? mini_batch_size : batch_size;
 	pl.batch_size = batch_size;
 	pl.fp = fp;
-	pl.ri = ri_idx_init(diff, b, w, e, n, q, k, fine_min, fine_max, fine_range, flag);
+	pl.ri = ri_idx_init(diff, b, w, e, n, q, k, fine_min, fine_max, fine_range, flag, key_flip_rate, value_flip_rate);
 	
 	pl.ri->pore = (ri_pore_t*)ri_kmalloc(pl.ri->km, sizeof(ri_pore_t));
 	memcpy(pl.ri->pore, pore, sizeof(ri_pore_t));
@@ -677,7 +665,7 @@ ri_idx_t* ri_idx_gen(mm_bseq_file_t* fp, ri_pore_t* pore, float diff, int b, int
 	return pl.ri;
 }
 
-ri_idx_t* ri_idx_siggen(ri_sig_file_t** fp, char **f, int &cur_f, int n_f, ri_pore_t* pore, float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, uint32_t window_length1, uint32_t window_length2, float threshold1, float threshold2, float peak_height, int flag, int mini_batch_size, int n_threads, uint64_t batch_size)
+ri_idx_t* ri_idx_siggen(ri_sig_file_t** fp, char **f, int &cur_f, int n_f, ri_pore_t* pore, float diff, int b, int w, int e, int n, int q, int k, float fine_min, float fine_max, float fine_range, uint32_t window_length1, uint32_t window_length2, float threshold1, float threshold2, float peak_height, int flag, int mini_batch_size, int n_threads, uint64_t batch_size, float key_flip_rate, float value_flip_rate)
 {
 
 	if(!(flag&RI_I_SIG_TARGET)) return 0;
@@ -691,7 +679,7 @@ ri_idx_t* ri_idx_siggen(ri_sig_file_t** fp, char **f, int &cur_f, int n_f, ri_po
 	pl.sf = f;
 	pl.n_f = n_f;
 	pl.cur_f = cur_f;
-	pl.ri = ri_idx_init(diff, b, w, e, n, q, k, fine_min, fine_max, fine_range, flag);
+	pl.ri = ri_idx_init(diff, b, w, e, n, q, k, fine_min, fine_max, fine_range, flag, key_flip_rate, value_flip_rate);
 
 	pl.ri->pore = (ri_pore_t*)ri_kmalloc(pl.ri->km, sizeof(ri_pore_t));
 	memcpy(pl.ri->pore, pore, sizeof(ri_pore_t));
@@ -722,9 +710,9 @@ ri_idx_t* ri_idx_reader_read(ri_idx_reader_t* r, ri_pore_t* pore, int n_threads)
 	if (r->is_idx) {
 		ri = ri_idx_load(r->fp.idx);
 	} else if(r->opt.flag&RI_I_SIG_TARGET) {
-		ri = ri_idx_siggen(&(r->sfp), r->sf, r->cur_f, r->n_f, pore, r->opt.diff, r->opt.b, r->opt.w, r->opt.e, r->opt.n, r->opt.q, r->opt.k, r->opt.fine_min, r->opt.fine_max, r->opt.fine_range, r->opt.window_length1, r->opt.window_length2, r->opt.threshold1, r->opt.threshold2, r->opt.peak_height, r->opt.flag, r->opt.mini_batch_size, n_threads, r->opt.batch_size);
+		ri = ri_idx_siggen(&(r->sfp), r->sf, r->cur_f, r->n_f, pore, r->opt.diff, r->opt.b, r->opt.w, r->opt.e, r->opt.n, r->opt.q, r->opt.k, r->opt.fine_min, r->opt.fine_max, r->opt.fine_range, r->opt.window_length1, r->opt.window_length2, r->opt.threshold1, r->opt.threshold2, r->opt.peak_height, r->opt.flag, r->opt.mini_batch_size, n_threads, r->opt.batch_size, r->opt.key_flip_rate, r->opt.value_flip_rate);
 	} else{
-		ri = ri_idx_gen(r->fp.seq, pore, r->opt.diff, r->opt.b, r->opt.w, r->opt.e, r->opt.n, r->opt.q, r->opt.k, r->opt.fine_min, r->opt.fine_max, r->opt.fine_range, r->opt.flag, r->opt.mini_batch_size, n_threads, r->opt.batch_size);
+		ri = ri_idx_gen(r->fp.seq, pore, r->opt.diff, r->opt.b, r->opt.w, r->opt.e, r->opt.n, r->opt.q, r->opt.k, r->opt.fine_min, r->opt.fine_max, r->opt.fine_range, r->opt.flag, r->opt.mini_batch_size, n_threads, r->opt.batch_size, r->opt.key_flip_rate, r->opt.value_flip_rate);
 	}
 
 	if (ri) {
@@ -801,15 +789,26 @@ void ri_mapopt_update(ri_mapopt_t *opt, const ri_idx_t *ri)
 	if (opt->bw_long < opt->bw) opt->bw_long = opt->bw;
 }
 
-uint64_t flip_bits(const uint64_t input, const bool if_flip_least_32_bits, const float flip_rate) {
+uint64_t flip_bits_32(const uint64_t input, const float flip_rate) {
     static std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr))); 
     std::bernoulli_distribution dist(flip_rate);
-
     uint64_t result = input;
-    int num_bits = if_flip_least_32_bits ? 32 : 12;
-    for (int i = 0; i < num_bits; ++i) {
+    for (int i = 0; i < 32; ++i) {
         if (dist(rng)) { 
             result ^= (1ULL << i);
+        }
+    }
+    return result;
+}
+uint64_t flip_bits_from_most_significant_one(const uint64_t input, const float flip_rate) {
+    static std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr)));  // Initialize once, use repeatedly
+    std::bernoulli_distribution dist(flip_rate);
+    if (input == 0) return 0;
+    const int msb = 63 - __builtin_clzll(input); 
+    uint64_t result = input;
+    for (int i = 20; i >= 0; --i) {
+        if (dist(rng)) {  // Random chance to flip the bit
+            result ^= (1ULL << i); // Toggle the ith bit
         }
     }
     return result;
